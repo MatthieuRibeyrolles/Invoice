@@ -5,10 +5,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.sql.DataSource;
 
 public class DAO {
@@ -76,9 +75,76 @@ public class DAO {
 	 * taille
 	 * @throws java.lang.Exception si la transaction a échoué
 	 */
-	public void createInvoice(CustomerEntity customer, int[] productIDs, int[] quantities)
-		throws Exception {
-		throw new UnsupportedOperationException("Pas encore implémenté");
+	public void createInvoice(CustomerEntity customer, int[] productIDs, int[] quantities) throws Exception {  
+            if (productIDs.length != quantities.length)
+                throw new IllegalArgumentException("arrays must have the same length");
+            
+            String sql = "INSERT INTO Invoice (CustomerID, Total) VALUES (?, ?)";
+            String productsSql = "SELECT * FROM Product WHERE ID = ?";
+            List<Product> products = new ArrayList<Product>();
+            
+            try (Connection connection = myDataSource.getConnection();
+                    PreparedStatement stmt = connection.prepareStatement(sql)) {
+                for (int i = 0; i < productIDs.length; i++) {
+                    try (Connection productConnection = myDataSource.getConnection();
+                        PreparedStatement productStmt = productConnection.prepareStatement(productsSql)){
+                        
+                        productStmt.setInt(1, i);
+                        ResultSet rs = productStmt.executeQuery();
+                        
+                        if (rs.next() && quantities[i] >= 0) {
+                            products.add(new Product(i, 
+                                                    rs.getString("Name"), 
+                                                    rs.getFloat("Price"),
+                                                    quantities[i]));
+                        } else throw new IllegalArgumentException("Product not found or negative quantity");
+                    }   
+                } 
+                
+                float total = 0.f;
+                
+                for (Product p : products)
+                    total += p.getTotalPrice();
+                
+                stmt.setInt(1, customer.getCustomerId());
+                stmt.setFloat(2, total);
+               
+                stmt.executeUpdate();
+            }
+            
+            sql = "SELECT MAX(ID) as id FROM Invoice";
+            
+            int invoiceId = -1;
+            
+            try (Connection connection = myDataSource.getConnection();
+                    PreparedStatement stmt = connection.prepareStatement(sql))
+            {
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next())
+                    invoiceId = rs.getInt("id");   
+            }
+            
+            sql = "INSERT INTO Item (Item, InvoiceID, ProductID, Quantity, Cost) VALUES(?, ?, ?, ?, ?)";
+
+               for (int i = 0; i < products.size()-1; i++)
+                   sql += ", (?, ?, ?, ?, ?)";
+                
+            try ( Connection connetion = myDataSource.getConnection();
+                    PreparedStatement stmt = connetion.prepareStatement(sql)
+                    ) 
+            {
+                for (int i = 0; i < products.size(); i++) {
+                    Product p = products.get(i);
+                    
+                    stmt.setInt(i+1, i);
+                    stmt.setInt(i+2, invoiceId);
+                    stmt.setInt(i+3, p.getID());
+                    stmt.setInt(i+4, p.getQuantity());
+                    stmt.setFloat(i+5, p.getTotalPrice()); 
+                }
+                
+                stmt.executeUpdate();
+            }
 	}
 
 	/**

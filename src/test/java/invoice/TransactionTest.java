@@ -1,7 +1,5 @@
 package invoice;
 
-import invoice.DAO;
-import invoice.CustomerEntity;
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
@@ -11,7 +9,6 @@ import org.hsqldb.cmdline.SqlFile;
 import org.hsqldb.cmdline.SqlToolError;
 import org.junit.After;
 import org.junit.Test;
-import org.junit.Ignore;
 import static org.junit.Assert.*;
 import org.junit.Before;
 
@@ -93,8 +90,26 @@ public class TransactionTest {
 
 		assertEquals(before + 2f * 10f, after, 0.001f);		
 	}
-	
+        
+        @Test (expected = IllegalArgumentException.class)
+        public void negativeQuantitie() throws Exception {
+            int id = myCustomer.getCustomerId();
+		float before = myDAO.totalForCustomer(id);
 
+		int[] productIds = new int[]{0}; 
+		int[] quantities = new int[]{-2};
+		myDAO.createInvoice(myCustomer, productIds, quantities);
+        }
+	
+        @Test (expected = IllegalArgumentException.class)
+        public void productNotFound() throws Exception {
+            int id = myCustomer.getCustomerId();
+		float before = myDAO.totalForCustomer(id);
+
+		int[] productIds = new int[]{-1};
+		int[] quantities = new int[]{2};
+		myDAO.createInvoice(myCustomer, productIds, quantities);
+        }
 	
 	public static DataSource getDataSource() throws SQLException {
 		org.hsqldb.jdbc.JDBCDataSource ds = new org.hsqldb.jdbc.JDBCDataSource();
